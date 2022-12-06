@@ -9,6 +9,8 @@ import torch.nn.functional as F
 
 import pickle
 
+DEVICE = tc.device("cuda:1" if tc.cuda.is_available() else "cpu")
+
 class Model(object):
     def __init__(self, Sl,Sf, A, time_horizon):
         self.slow_state = tc.zeros(Sl)
@@ -16,55 +18,43 @@ class Model(object):
         self.action = tc.zeros(A)
         self.time_horizon = time_horizon
         self.Sl_d, self.Sf_d, self.A_d = Sl, Sf, A
-
-        with open('data/epsilon.pickle', 'rb') as pk:
-            self.epsilon = pickle.load(pk)
-        self.f2_nn_dict = tc.load('data/f2_nn')
+        self.scale_f = 50
 
         with open('data/km_model.pickle', 'rb') as pk:
             self.kmeans = pickle.load(pk)
 
-        self.net_dict = {}
-        f2_input_layer_dim = Sl + Sf + A
-        f2_output_layer_dim = Sf
-        f2_hidden_width = f2_input_layer_dim
-        W_SCALE = 5
-        for u in self.f2_nn_dict:
-            net = nn.Sequential(nn.Linear(f2_input_layer_dim, W_SCALE*f2_hidden_width), 
-                    nn.ReLU(), nn.Linear(W_SCALE*f2_hidden_width, W_SCALE*f2_hidden_width),
-                    nn.ReLU(), nn.Linear(W_SCALE*f2_hidden_width, f2_output_layer_dim),
-                    nn.Softmax())
-            net.load_state_dict(self.f2_nn_dict[u])
-            self.net_dict[u] = net
-        
-        self.users_cnt = len(self.f2_nn_dict)
+        self.epsilon = 0.2
+        self.y_0 = tc.tensor(self.kmeans.cluster_centers_, dtype=tc.float).to(DEVICE)
 
     def update(self, Sl, Sf, A, u):
-        Sl_next = Sl + self.epsilon[u]*tc.dot(Sf, A) 
-        input_data = tc.hstack([tc.tensor([Sl]), Sf, A])
-        Sf_next = self.net_dict[u](input_data)
-
-        return Sl_next, Sf_next
+        Sl_next = Sl + self.epsilon*tc.dot(Sf, A)
+        Sl_next = tc.clip(Sl_next, min=0, max=1)
+        # Sf_next = (Sf + Sl*A)/(Sf + Sl*A).sum()
+        Sf_next = F.softmax((Sf + Sl*A)*self.scale_f, dim=0)
+        # print(tc.exp(Sf + Sl*A))
+        # Sf_next = tc.exp(Sf + Sl*A) / tc.sum(tc.exp(Sf + Sl*A))
+        return Sl_next, Sf_next, Sl == 0
 
     def reward(self, Sl, Sf, A):
-        return Sl + tc.dot(Sf, A) 
+        return tc.dot(Sf, A) if Sl != 0 else -100
 
-    def initial_state(self, u, seed=0):
-        Sf = tc.tensor(self.kmeans.cluster_centers_[u], dtype=tc.float)
-        return 0, Sf
+    def reset(self, u, seed=0):
+        return 0.5, tc.ones(len(self.y_0[u])).to(DEVICE)
+
 
 if __name__ == '__main__':
     with open('data/dimension.pickle', 'rb') as pk:
         dim_info = pickle.load(pk)
     Sl_d, Sf_d, A_d = 1, dim_info['tages'], dim_info['tages']
     T = 100
-    user_class = 39
+    user_class = 9
     model = Model(Sl_d, Sf_d, A_d, T)
-    sl, sf = model.initial_state(user_class)
-    A = sf
-    
+    sl, sf = model.reset(user_class)
+    A = model.y_0[user_class]
     
     for _ in range(model.time_horizon):
-        A = sf
-        sl, sf = model.update(sl, sf, A, user_class)
-        print(sl, sf, model.reward(sl, sf, A))
+        
+        sl, sf, terminal = model.update(sl, sf, A, user_class)
+        if terminal: break
+        
+    print(sl, sf, A, model.reward(sl, sf, A))
