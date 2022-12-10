@@ -16,23 +16,29 @@ class Policy(nn.Module):
     def __init__(self, input_layer):
         super(Policy, self).__init__()
         self.net = nn.Sequential(nn.Linear(input_layer, input_layer), 
-            nn.ReLU(), nn.Linear(input_layer, input_layer),
-            nn.Softmax(dim=-1))
-            # nn.ReLU6())
-        # self.net.to(DEVICE)
+            nn.Sigmoid(), nn.Linear(input_layer, input_layer),
+            nn.Softmax(dim=0))
+
+        self.net.apply(self.weights_init)
+
         self.input_layer = input_layer
 
     def forward(self, x):
         x = tc.FloatTensor(x)
         return self.net(x)
+        
+    def weights_init(self, m):
+        if isinstance(m, nn.Linear):
+            tc.nn.init.normal_(m.weight, mean=0.0, std=0.5)
+            # tc.nn.init.zero_(m.bias)
 
 
-def policy_gradient(model, user_class, policy, learning_rate=0.01, num_episodes=1500, batch_size=10, discount_factor=0.99, early_stop_reward=100):
+
+def policy_gradient(model, user_class, policy, learning_rate=0.01, num_episodes=1000, batch_size=10, discount_factor=1., early_stop=2000):
     total_rewards, batch_rewards, batch_states_fast, batch_actions = [], [], [], []
     batch_counter = 1
 
     optimizer = tc.optim.Adam(policy.parameters(), lr=learning_rate)
-    # action_space = np.arange(env.action_space.n) # [0, 1] for cartpole (either left or right)
 
     for episode in tqdm(range(num_episodes)):
         state_slow, state_fast = model.reset(user_class)
@@ -98,11 +104,11 @@ def policy_gradient(model, user_class, policy, learning_rate=0.01, num_episodes=
 
                 # get running average of last 100 rewards, print every 100 episodes
                 average_reward = np.mean(total_rewards[-100:])
-                if episode % 100 == 0:
+                if episode % 10 == 0:
                     print(f"average of last 100 rewards as of episode {episode}: {average_reward:.2f}")
 
                 # quit early if average_reward is high enough
-                # if average_reward > early_stop_reward:
+                # if average_reward > early_stop:
                 #     return total_rewards
 
                 break
@@ -113,10 +119,6 @@ def policy_gradient(model, user_class, policy, learning_rate=0.01, num_episodes=
 
 if __name__ == '__main__':
     # Parameters
-    num_episode = 30
-    batch_size = 5
-    learning_rate = 0.01
-    # gamma = 1
 
     with open('data/dimension.pickle', 'rb') as pk:
         dim_info = pickle.load(pk)
@@ -124,10 +126,11 @@ if __name__ == '__main__':
     T = 100
     model = Model(Sl_d, Sf_d, A_d, T)
     policy = Policy(model.Sf_d)
-    user_class = 1
+    user_class = 3
     rewards = policy_gradient(
-        model=model, user_class=user_class,
-        policy = policy, num_episodes=1500
+        model=model, user_class=user_class, batch_size=10,
+        policy=policy, num_episodes=1500, learning_rate=0.01,
+        early_stop=5
     )
 
     # moving average
@@ -137,71 +140,11 @@ if __name__ == '__main__':
         return (cumsum[n:] - cumsum[:-n]) / float(n)
 
     # plotting
-    plt.scatter(np.arange(len(rewards)), rewards, label='individual episodes')
-    plt.plot(moving_average(rewards), label=f'moving average of last {moving_average_num} episodes')
-    plt.title(f'Vanilla Policy Gradient')
-    plt.xlabel('Episode')
-    plt.ylabel('Reward')
-    plt.legend()
-    plt.show()
-
-    # reward_history = []
-    # policy_error = []
-
-    # user_class = 1
-
-    # policy = Policy(model.Sf_d)
-    # optimizer = tc.optim.Adam(policy.parameters(), lr=learning_rate)
-
-    # # Batch History
-    # state_slow_pool = []
-    # state_fast_pool = []
-    # action_pool = []
-    # reward_pool = []
-
-    # for _ in tqdm(range(num_episode)):
-    # # for _ in range(num_episode):
-    #     state_slow, state_fast = model.reset(user_class)
-    #     step = 0
-    #     # MC
-    #     for t in range(150):
-    #         state_fast = Variable(state_fast)
-    #         action = policy(state_fast)
-            
-    #         reward = model.reward(state_slow, state_fast, action)
-    #         next_state_slow, next_state_fast, terminal = model.update(state_slow, state_fast, action, user_class)
-            
-    #         state_slow_pool.append(state_slow)
-    #         state_fast_pool.append(state_fast)
-    #         action_pool.append(action)
-    #         reward_pool.append(reward)
-            
-    #         state_slow = next_state_slow
-    #         state_fast = next_state_fast
-    #         step += 1
-    #         if terminal:
-    #             break
-    #     # print(f'pool: {_},', reward_pool, state_slow_pool, action_pool)
-        
-    #     G = np.cumsum( np.array(reward_pool[::-1]) )
-    #     reward_history.append(G[-1])
     
-    #     for i in range(step):
-    #         state_fast = state_fast_pool[i]
-    #         action = Variable(action_pool[i])
-    #         loss = - tc.sum(tc.log( policy(state_fast) ) * G[i])
-
-    #         # Gradient Desent
-    #         optimizer.zero_grad()
-    #         loss.backward()
-    #         optimizer.step()
-
-    #     state_slow_pool = []
-    #     state_fast_pool = []
-    #     action_pool = []
-    #     reward_pool = []
-
-
-    # print(reward_history)
-    # print(model.y_0[user_class], policy(tc.tensor(model.y_0[user_class], dtype=tc.float)))
-    
+    fig, ax = plt.subplots()
+    ax.scatter(np.arange(len(rewards)), rewards, label='episodes', alpha=0.5)
+    ax.plot(moving_average(rewards), label=f'average')
+    ax.set_title(f'Policy Gradient')
+    ax.set_label('Episode')
+    ax.set_label('Reward')
+    plt.savefig("MC.png", dpi=200)

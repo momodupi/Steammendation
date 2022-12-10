@@ -21,7 +21,7 @@ class Model(object):
         self.action = tc.zeros(A)
         self.time_horizon = time_horizon
         self.Sl_d, self.Sf_d, self.A_d = Sl, Sf, A
-        self.scale_f = 15
+        self.scale_f = 20
         self.cos_bias = 0.5
 
         with open('data/km_model.pickle', 'rb') as pk:
@@ -34,11 +34,11 @@ class Model(object):
 
     def update(self, Sl, Sf, A, u):
         Sl_next = Sl + self.epsilon * ( Sf.dot(A)/(norm(Sf)*norm(A)) - self.cos_bias )
-        Sl_next = np.clip(Sl_next, a_min=0, a_max=1)
+        Sl_next = np.clip(Sl_next, a_min=0., a_max=1.)
         # Sf_next = (Sf + Sl*A)/ max((Sf + Sl*A).sum(), 1e-2)
         # Sf_next = Sf
         Sf_next = softmax((Sf + Sl*A)*self.scale_f)
-        return Sl_next, Sf_next, Sl == 0 or Sl == 1
+        return Sl_next, Sf_next, Sl <= 0 or Sl >= 1
 
 
     def reward(self, Sl, Sf, A):
@@ -67,6 +67,7 @@ if __name__ == '__main__':
     for _ in range(model.time_horizon):
         
         sl, sf, terminal = model.update(sl, sf, A, user_class)
+        r = model.reward(sl, sf, A)
         if terminal: break
         
     print(sl, sf, A, model.reward(sl, sf, A))
