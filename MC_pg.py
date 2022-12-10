@@ -10,21 +10,21 @@ import pickle
 from tqdm import tqdm
 
 
-# DEVICE = tc.device("cuda:1" if tc.cuda.is_available() else "cpu")
+DEVICE = tc.device("cuda:1" if tc.cuda.is_available() else "cpu")
 
 class Policy(nn.Module):
     def __init__(self, input_layer):
         super(Policy, self).__init__()
-        self.net = nn.Sequential(nn.Linear(input_layer, input_layer), 
-            nn.Sigmoid(), nn.Linear(input_layer, input_layer),
-            nn.Softmax(dim=0))
+        self.net = nn.Sequential(nn.Linear(input_layer, 2*input_layer), 
+            nn.Sigmoid(), nn.Linear(2*input_layer, input_layer),
+            nn.Softmax(dim=0)).to(DEVICE)
 
         self.net.apply(self.weights_init)
 
         self.input_layer = input_layer
 
     def forward(self, x):
-        x = tc.FloatTensor(x)
+        x = tc.tensor(x, dtype=tc.float, device=DEVICE)
         return self.net(x)
         
     def weights_init(self, m):
@@ -34,11 +34,12 @@ class Policy(nn.Module):
 
 
 
-def policy_gradient(model, user_class, policy, learning_rate=0.01, num_episodes=1000, batch_size=10, discount_factor=1., early_stop=2000):
+def policy_gradient(model, user_class, policy, learning_rate=0.01, num_episodes=1000, batch_size=10, discount_factor=1., learnign_rate_decay=0.9):
     total_rewards, batch_rewards, batch_states_fast, batch_actions = [], [], [], []
     batch_counter = 1
 
     optimizer = tc.optim.Adam(policy.parameters(), lr=learning_rate)
+    scheduler = tc.optim.lr_scheduler.ExponentialLR(optimizer, gamma=learnign_rate_decay)
 
     for episode in tqdm(range(num_episodes)):
         state_slow, state_fast = model.reset(user_class)
@@ -48,7 +49,8 @@ def policy_gradient(model, user_class, policy, learning_rate=0.01, num_episodes=
             # use policy to make predictions and run an action
             # state_fast = tc.FloatTensor(state_fast).to(DEVICE)
             action_probs = policy(state_fast).detach().cpu().numpy()
-            action = [np.argmax(action_probs)]
+            # action = [np.argmax(action_probs)]
+            action = [ np.random.choice(len(action_probs), 1, p=action_probs) ]
             action_vec = np.zeros(len(action_probs))
             action_vec[action] = 1
 
@@ -81,15 +83,15 @@ def policy_gradient(model, user_class, policy, learning_rate=0.01, num_episodes=
                     optimizer.zero_grad()
 
                     # tensorify things
-                    batch_rewards = tc.FloatTensor(batch_rewards)
-                    batch_states_fast = tc.FloatTensor(batch_states_fast)
-                    batch_actions = tc.LongTensor(batch_actions)
+                    batch_rewards = tc.tensor(batch_rewards, dtype=tc.float, device=DEVICE)
+                    batch_states_fast = tc.tensor(batch_states_fast, dtype=tc.float, device=DEVICE)
+                    batch_actions = tc.tensor(batch_actions, dtype=tc.int64, device=DEVICE)
                     
                     # calculate loss
                     logprob = tc.log(policy(batch_states_fast))
                     batch_actions = batch_actions.reshape(len(batch_actions), 1)
 
-                    # print(batch_states_fast.shape, logprob.shape, batch_actions.shape, batch_rewards.shape)
+                    # print(batch_states_fast, batch_actions, batch_rewards)
                     # break
                     selected_logprobs = batch_rewards * tc.gather(logprob, 1, batch_actions).squeeze()
                     loss = -selected_logprobs.mean()
@@ -105,6 +107,7 @@ def policy_gradient(model, user_class, policy, learning_rate=0.01, num_episodes=
                 # get running average of last 100 rewards, print every 100 episodes
                 average_reward = np.mean(total_rewards[-100:])
                 if episode % 10 == 0:
+                    scheduler.step()
                     print(f"average of last 100 rewards as of episode {episode}: {average_reward:.2f}")
 
                 # quit early if average_reward is high enough
@@ -124,27 +127,29 @@ if __name__ == '__main__':
         dim_info = pickle.load(pk)
     Sl_d, Sf_d, A_d = 1, dim_info['tages'], dim_info['tages']
     T = 100
-    model = Model(Sl_d, Sf_d, A_d, T)
+    
+    user_class = 2
+    model = Model(Sl_d, Sf_d, A_d, T, bias=0.3)
     policy = Policy(model.Sf_d)
-    user_class = 3
     rewards = policy_gradient(
-        model=model, user_class=user_class, batch_size=10,
-        policy=policy, num_episodes=1500, learning_rate=0.01,
-        early_stop=5
+        model=model, user_class=user_class, batch_size=15,
+        policy=policy, num_episodes=500, learning_rate=0.025,
+        learnign_rate_decay=0.99
     )
 
-    # moving average
-    moving_average_num = 100
-    def moving_average(x, n=moving_average_num):
-        cumsum = np.cumsum(np.insert(x, 0, 0))
-        return (cumsum[n:] - cumsum[:-n]) / float(n)
-
-    # plotting
+    with open(f'data/pg_total_rewards_{user_class}.pickle', 'wb') as pk:
+        pickle.dump(rewards, pk, protocol=pickle.HIGHEST_PROTOCOL)
     
-    fig, ax = plt.subplots()
-    ax.scatter(np.arange(len(rewards)), rewards, label='episodes', alpha=0.5)
-    ax.plot(moving_average(rewards), label=f'average')
-    ax.set_title(f'Policy Gradient')
-    ax.set_label('Episode')
-    ax.set_label('Reward')
-    plt.savefig("MC.png", dpi=200)
+    
+    # for user_class in range(10):
+    # # user_class = 8
+    #     model = Model(Sl_d, Sf_d, A_d, T, bias=0.3)
+    #     policy = Policy(model.Sf_d)
+    #     rewards = policy_gradient(
+    #         model=model, user_class=user_class, batch_size=5,
+    #         policy=policy, num_episodes=500, learning_rate=0.01,
+    #         learnign_rate_decay=0.9
+    #     )
+
+    #     with open(f'data/pg_total_rewards_{user_class}.pickle', 'wb') as pk:
+    #         pickle.dump(rewards, pk, protocol=pickle.HIGHEST_PROTOCOL)
