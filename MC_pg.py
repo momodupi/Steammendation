@@ -128,12 +128,12 @@ if __name__ == '__main__':
     Sl_d, Sf_d, A_d = 1, dim_info['tages'], dim_info['tages']
     T = 100
     
-    user_class = 4
-    model = Model(Sl_d, Sf_d, A_d, T, bias=0.3)
+    user_class = 5
+    model = Model(Sl_d, Sf_d, A_d, T, bias=0.3, normal_scale=0)
     policy = Policy(model.Sf_d)
     rewards = MC_policy_gradient(
-        model=model, user_class=user_class, batch_size=30,
-        policy=policy, num_episodes=500, learning_rate=0.3,
+        model=model, user_class=user_class, batch_size=20,
+        policy=policy, num_episodes=500, learning_rate=0.1,
         learnign_rate_decay=0.9
     )
 
