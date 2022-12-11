@@ -15,12 +15,13 @@ DEVICE = tc.device("cuda:1" if tc.cuda.is_available() else "cpu")
 class Policy(nn.Module):
     def __init__(self, input_layer):
         super(Policy, self).__init__()
-        self.net = nn.Sequential(nn.Linear(input_layer, 2*input_layer), 
-            nn.Sigmoid(), nn.Linear(2*input_layer, input_layer),
+        self.net = nn.Sequential(nn.Linear(input_layer, input_layer), 
+            nn.Sigmoid(), nn.Linear(input_layer, input_layer),
             nn.Softmax(dim=0)).to(DEVICE)
 
+        tc.manual_seed(0)
         self.net.apply(self.weights_init)
-
+        
         self.input_layer = input_layer
 
     def forward(self, x):
@@ -127,29 +128,46 @@ if __name__ == '__main__':
         dim_info = pickle.load(pk)
     Sl_d, Sf_d, A_d = 1, dim_info['tages'], dim_info['tages']
     T = 100
-    
-    user_class = 5
-    model = Model(Sl_d, Sf_d, A_d, T, bias=0.3, normal_scale=0)
+    SCALE = 0.05
+    user_class = 4
+    model = Model(Sl_d, Sf_d, A_d, T, bias=0.3, normal_scale=SCALE)
     policy = Policy(model.Sf_d)
+    # 0
+    # rewards = MC_policy_gradient(
+    #     model=model, user_class=user_class, batch_size=10,
+    #     policy=policy, num_episodes=500, learning_rate=0.06,
+    #     learnign_rate_decay=1.
+    # )
+
+    # 1
+    # rewards = MC_policy_gradient(
+    #     model=model, user_class=user_class, batch_size=10,
+    #     policy=policy, num_episodes=500, learning_rate=0.2,
+    #     learnign_rate_decay=0.92
+    # )
+
+    # 2
+    # rewards = MC_policy_gradient(
+    #     model=model, user_class=user_class, batch_size=10,
+    #     policy=policy, num_episodes=500, learning_rate=0.5,
+    #     learnign_rate_decay=0.8
+    # )
+
+    # 3
+    # rewards = MC_policy_gradient(
+    #     model=model, user_class=user_class, batch_size=10,
+    #     policy=policy, num_episodes=500, learning_rate=0.25,
+    #     learnign_rate_decay=0.9
+    # )
+
+    # 4
     rewards = MC_policy_gradient(
         model=model, user_class=user_class, batch_size=20,
-        policy=policy, num_episodes=500, learning_rate=0.1,
-        learnign_rate_decay=0.9
+        policy=policy, num_episodes=500, learning_rate=0.3,
+        learnign_rate_decay=0.8
     )
 
-    with open(f'data/pg_total_rewards_{user_class}.pickle', 'wb') as pk:
+    with open(f'data/pg_rd_total_rewards_{user_class}.pickle', 'wb') as pk:
         pickle.dump(rewards, pk, protocol=pickle.HIGHEST_PROTOCOL)
     
     
-    # for user_class in range(10):
-    # # user_class = 8
-    #     model = Model(Sl_d, Sf_d, A_d, T, bias=0.3)
-    #     policy = Policy(model.Sf_d)
-    #     rewards = policy_gradient(
-    #         model=model, user_class=user_class, batch_size=5,
-    #         policy=policy, num_episodes=500, learning_rate=0.01,
-    #         learnign_rate_decay=0.9
-    #     )
-
-    #     with open(f'data/pg_total_rewards_{user_class}.pickle', 'wb') as pk:
-    #         pickle.dump(rewards, pk, protocol=pickle.HIGHEST_PROTOCOL)
