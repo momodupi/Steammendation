@@ -34,7 +34,7 @@ class Policy(nn.Module):
 
 
 
-def policy_gradient(model, user_class, policy, learning_rate=0.01, num_episodes=1000, batch_size=10, discount_factor=1., learnign_rate_decay=0.9):
+def MC_policy_gradient(model, user_class, policy, learning_rate=0.01, num_episodes=1000, batch_size=10, discount_factor=1., learnign_rate_decay=0.9):
     total_rewards, batch_rewards, batch_states_fast, batch_actions = [], [], [], []
     batch_counter = 1
 
@@ -128,13 +128,13 @@ if __name__ == '__main__':
     Sl_d, Sf_d, A_d = 1, dim_info['tages'], dim_info['tages']
     T = 100
     
-    user_class = 2
+    user_class = 4
     model = Model(Sl_d, Sf_d, A_d, T, bias=0.3)
     policy = Policy(model.Sf_d)
-    rewards = policy_gradient(
-        model=model, user_class=user_class, batch_size=15,
-        policy=policy, num_episodes=500, learning_rate=0.025,
-        learnign_rate_decay=0.99
+    rewards = MC_policy_gradient(
+        model=model, user_class=user_class, batch_size=30,
+        policy=policy, num_episodes=500, learning_rate=0.3,
+        learnign_rate_decay=0.9
     )
 
     with open(f'data/pg_total_rewards_{user_class}.pickle', 'wb') as pk:
