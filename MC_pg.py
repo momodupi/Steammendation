@@ -129,43 +129,79 @@ if __name__ == '__main__':
     Sl_d, Sf_d, A_d = 1, dim_info['tages'], dim_info['tages']
     T = 100
     SCALE = 0.05
-    user_class = 4
+    
     model = Model(Sl_d, Sf_d, A_d, T, bias=0.3, normal_scale=SCALE)
     policy = Policy(model.Sf_d)
-    # 0
-    # rewards = MC_policy_gradient(
-    #     model=model, user_class=user_class, batch_size=10,
-    #     policy=policy, num_episodes=500, learning_rate=0.06,
-    #     learnign_rate_decay=1.
-    # )
+    
+    user_class = 0
+    rewards = MC_policy_gradient(
+        model=model, user_class=user_class, batch_size=10,
+        policy=policy, num_episodes=500, learning_rate=0.2,
+        learnign_rate_decay=0.93
+    )
 
-    # 1
+    # user_class = 1
     # rewards = MC_policy_gradient(
     #     model=model, user_class=user_class, batch_size=10,
     #     policy=policy, num_episodes=500, learning_rate=0.2,
     #     learnign_rate_decay=0.92
     # )
 
-    # 2
+    # user_class = 2
     # rewards = MC_policy_gradient(
     #     model=model, user_class=user_class, batch_size=10,
     #     policy=policy, num_episodes=500, learning_rate=0.5,
     #     learnign_rate_decay=0.8
     # )
 
-    # 3
+    # user_class = 3
     # rewards = MC_policy_gradient(
     #     model=model, user_class=user_class, batch_size=10,
     #     policy=policy, num_episodes=500, learning_rate=0.25,
     #     learnign_rate_decay=0.9
     # )
 
-    # 4
-    rewards = MC_policy_gradient(
-        model=model, user_class=user_class, batch_size=20,
-        policy=policy, num_episodes=500, learning_rate=0.3,
-        learnign_rate_decay=0.8
-    )
+    # user_class = 4
+    # rewards = MC_policy_gradient(
+    #     model=model, user_class=user_class, batch_size=20,
+    #     policy=policy, num_episodes=500, learning_rate=0.1,
+    #     learnign_rate_decay=0.5
+    # )
+    
+    # user_class = 5
+    # rewards = MC_policy_gradient(
+    #     model=model, user_class=user_class, batch_size=10,
+    #     policy=policy, num_episodes=500, learning_rate=0.20,
+    #     learnign_rate_decay=0.91
+    # )
+    
+    # user_class = 6
+    # rewards = MC_policy_gradient(
+    #     model=model, user_class=user_class, batch_size=20,
+    #     policy=policy, num_episodes=500, learning_rate=0.37,
+    #     learnign_rate_decay=0.86
+    # )
+    
+    # user_class = 7
+    # rewards = MC_policy_gradient(
+    #     model=model, user_class=user_class, batch_size=20,
+    #     policy=policy, num_episodes=500, learning_rate=0.9,
+    #     learnign_rate_decay=0.8
+    # )
+    
+    # user_class = 8
+    # rewards = MC_policy_gradient(
+    #     model=model, user_class=user_class, batch_size=10,
+    #     policy=policy, num_episodes=500, learning_rate=0.9,
+    #     learnign_rate_decay=0.85
+    # )
+    
+    # user_class = 9
+    # rewards = MC_policy_gradient(
+    #     model=model, user_class=user_class, batch_size=15,
+    #     policy=policy, num_episodes=500, learning_rate=0.9,
+    #     learnign_rate_decay=0.85
+    # )
 
     with open(f'data/pg_rd_total_rewards_{user_class}.pickle', 'wb') as pk:
         pickle.dump(rewards, pk, protocol=pickle.HIGHEST_PROTOCOL)
